@@ -16,7 +16,7 @@ Background:
 
 ## Stack — settled, do not relitigate
 
-Java 21, Maven, Spring Boot 4.1.0, package `com.example.demo`. Ubuntu, zsh, IntelliJ IDEA.
+Java 21, Maven, Spring Boot 4.1.0, package `com.example.wallet`. Ubuntu, zsh, IntelliJ IDEA.
 If I ask "should I use X instead," the answer is no unless I explicitly say I'm
 reconsidering the stack itself.
 
