@@ -33,6 +33,12 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse("Concurrent access to account, please retry"));
     }
 
+    @ExceptionHandler(OrphanedIdempotencyKeyException.class)
+    public ResponseEntity<ErrorResponse> handleOrphanedIdempotencyKeyException(OrphanedIdempotencyKeyException e){
+        log.error("Idempotency key {} references missing transfer {}", e.getKey(), e.getTransferId());
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ErrorResponse("Internal error, please contact support"));
+    }
+
 
     private record ErrorResponse(String message){}
 }

@@ -3,11 +3,11 @@ package com.example.wallet.service;
 import com.example.wallet.dto.TransferRequest;
 import com.example.wallet.dto.TransferResponse;
 import com.example.wallet.entity.Account;
+import com.example.wallet.entity.IdempotencyKey;
 import com.example.wallet.entity.Transfer;
-import com.example.wallet.exception.AccountNotFoundException;
-import com.example.wallet.exception.InsufficientFundsException;
-import com.example.wallet.exception.SameAccountTransferException;
+import com.example.wallet.exception.*;
 import com.example.wallet.repository.AccountRepository;
+import com.example.wallet.repository.IdempotencyKeyRepository;
 import com.example.wallet.repository.TransferRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,14 +16,23 @@ import org.springframework.transaction.annotation.Transactional;
 public class TransferService {
     private final TransferRepository transferRepository;
     private final AccountRepository accountRepository;
+    private final IdempotencyKeyRepository idempotencyKeyRepository;
 
-    public TransferService(TransferRepository transferRepository,  AccountRepository accountRepository) {
+    public TransferService(TransferRepository transferRepository,  AccountRepository accountRepository, IdempotencyKeyRepository idempotencyKeyRepository) {
         this.transferRepository = transferRepository;
         this.accountRepository = accountRepository;
+        this.idempotencyKeyRepository = idempotencyKeyRepository;
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public TransferResponse transfer(TransferRequest transferRequest){
+    public TransferResponse transfer(TransferRequest transferRequest, String key){
+        IdempotencyKey idempotencyKey = idempotencyKeyRepository.findById(key).orElse(null);
+        if (idempotencyKey != null) {
+            Long transferId = idempotencyKey.getTransferId();
+            Transfer transfer = transferRepository.findById(transferId).orElseThrow(() -> new OrphanedIdempotencyKeyException(key, transferId));
+            return TransferResponse.from(transfer);
+        }
+
         if (transferRequest.fromAccountId().equals(transferRequest.toAccountId())) {
             throw new SameAccountTransferException();
         }
@@ -40,6 +49,7 @@ public class TransferService {
         Account account1 = accountRepository.findWithLockById(firstId).orElseThrow(() -> new AccountNotFoundException(firstId));
         Account account2 = accountRepository.findWithLockById(secondId).orElseThrow(() -> new AccountNotFoundException(secondId));
 
+        try { Thread.sleep(5000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
         Account fromAccount, toAccount;
 
         if (account1.getId().equals(transferRequest.fromAccountId())) {
@@ -58,8 +68,11 @@ public class TransferService {
         toAccount.setBalance(toAccount.getBalance() + transferRequest.amount());
 
         Transfer transfer = new Transfer(fromAccount.getId(), toAccount.getId(), transferRequest.amount());
-        transferRepository.save(transfer);
+        Transfer savedTransfer = transferRepository.save(transfer);
 
-        return TransferResponse.from(transfer);
+        IdempotencyKey newIdempotencyKey = new IdempotencyKey(key, savedTransfer.getId());
+        idempotencyKeyRepository.save(newIdempotencyKey);
+
+        return TransferResponse.from(savedTransfer);
     }
 }
