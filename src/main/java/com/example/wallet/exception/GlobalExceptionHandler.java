@@ -39,11 +39,17 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ErrorResponse("Internal error, please contact support"));
     }
 
+    @ExceptionHandler(IdempotencyConflictException.class)
+    public  ResponseEntity<ErrorResponse> handleIdempotencyConflictException(IdempotencyConflictException e){
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse(e.getMessage()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleException(Exception e){
         log.error("Unhandled exception", e);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ErrorResponse("Internal error, please contact support"));
     }
+
 
 
     private record ErrorResponse(String message){}

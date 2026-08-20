@@ -9,6 +9,8 @@ import com.example.wallet.exception.*;
 import com.example.wallet.repository.AccountRepository;
 import com.example.wallet.repository.IdempotencyKeyRepository;
 import com.example.wallet.repository.TransferRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +32,11 @@ public class TransferService {
         if (idempotencyKey != null) {
             Long transferId = idempotencyKey.getTransferId();
             Transfer transfer = transferRepository.findById(transferId).orElseThrow(() -> new OrphanedIdempotencyKeyException(key, transferId));
+            if (!transfer.getAmount().equals(transferRequest.amount())
+                    || !transfer.getFromAccountId().equals(transferRequest.fromAccountId())
+                    || !transfer.getToAccountId().equals(transferRequest.toAccountId())) {
+                throw new IdempotencyConflictException(key);
+            }
             return TransferResponse.from(transfer);
         }
 
@@ -76,12 +83,26 @@ public class TransferService {
     }
 
     @Transactional(readOnly = true)
-    public TransferResponse findByIdempotencyKey(String key) {
+    public TransferResponse findByIdempotencyKey(TransferRequest transferRequest, String key) {
         IdempotencyKey idempotencyKey = idempotencyKeyRepository.findById(key).orElseThrow(() -> new IllegalStateException("Constraint violation on transfer, but idempotency key " + key + " not found"));
 
         Long transferId = idempotencyKey.getTransferId();
         Transfer transfer = transferRepository.findById(transferId).orElseThrow(() -> new OrphanedIdempotencyKeyException(key, transferId));
 
+        if (!transfer.getAmount().equals(transferRequest.amount())
+                || !transfer.getFromAccountId().equals(transferRequest.fromAccountId())
+                || !transfer.getToAccountId().equals(transferRequest.toAccountId())) {
+            throw new IdempotencyConflictException(key);
+        }
         return TransferResponse.from(transfer);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<TransferResponse> getTransactionsByAccountId(Long accountId, Pageable pageable) {
+        if (!accountRepository.existsById(accountId)) {
+            throw new AccountNotFoundException(accountId);
+        }
+        Page<Transfer> transfers = transferRepository.findByAccountId(accountId, pageable);
+        return transfers.map(TransferResponse::from);
     }
 }

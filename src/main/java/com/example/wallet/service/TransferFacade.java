@@ -17,7 +17,7 @@ public class TransferFacade {
         try {
             return transferService.executeTransfer(transferRequest, key);
         } catch (DataIntegrityViolationException e) {
-            return transferService.findByIdempotencyKey(key);
+            return transferService.findByIdempotencyKey(transferRequest, key);
         }
     }
 }
