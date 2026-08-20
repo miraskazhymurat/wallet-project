@@ -18,14 +18,14 @@ public class TransferService {
     private final AccountRepository accountRepository;
     private final IdempotencyKeyRepository idempotencyKeyRepository;
 
-    public TransferService(TransferRepository transferRepository,  AccountRepository accountRepository, IdempotencyKeyRepository idempotencyKeyRepository) {
+    public TransferService(TransferRepository transferRepository, AccountRepository accountRepository, IdempotencyKeyRepository idempotencyKeyRepository) {
         this.transferRepository = transferRepository;
         this.accountRepository = accountRepository;
         this.idempotencyKeyRepository = idempotencyKeyRepository;
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public TransferResponse transfer(TransferRequest transferRequest, String key){
+    public TransferResponse executeTransfer(TransferRequest transferRequest, String key) {
         IdempotencyKey idempotencyKey = idempotencyKeyRepository.findById(key).orElse(null);
         if (idempotencyKey != null) {
             Long transferId = idempotencyKey.getTransferId();
@@ -49,7 +49,6 @@ public class TransferService {
         Account account1 = accountRepository.findWithLockById(firstId).orElseThrow(() -> new AccountNotFoundException(firstId));
         Account account2 = accountRepository.findWithLockById(secondId).orElseThrow(() -> new AccountNotFoundException(secondId));
 
-        try { Thread.sleep(5000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
         Account fromAccount, toAccount;
 
         if (account1.getId().equals(transferRequest.fromAccountId())) {
@@ -61,7 +60,7 @@ public class TransferService {
         }
 
         if (fromAccount.getBalance() < transferRequest.amount()) {
-            throw new InsufficientFundsException(transferRequest.amount(),  fromAccount.getBalance());
+            throw new InsufficientFundsException(transferRequest.amount(), fromAccount.getBalance());
         }
 
         fromAccount.setBalance(fromAccount.getBalance() - transferRequest.amount());
@@ -74,5 +73,15 @@ public class TransferService {
         idempotencyKeyRepository.save(newIdempotencyKey);
 
         return TransferResponse.from(savedTransfer);
+    }
+
+    @Transactional(readOnly = true)
+    public TransferResponse findByIdempotencyKey(String key) {
+        IdempotencyKey idempotencyKey = idempotencyKeyRepository.findById(key).orElseThrow(() -> new IllegalStateException("Constraint violation on transfer, but idempotency key " + key + " not found"));
+
+        Long transferId = idempotencyKey.getTransferId();
+        Transfer transfer = transferRepository.findById(transferId).orElseThrow(() -> new OrphanedIdempotencyKeyException(key, transferId));
+
+        return TransferResponse.from(transfer);
     }
 }
