@@ -4,18 +4,24 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.time.OffsetDateTime;
 
 @Entity
-@Table(name="idempotency_keys")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Table(name = "idempotency_keys")
 public class IdempotencyKey {
     @Id
     private String key;
+    @Setter
     private Long transferId;
     private OffsetDateTime createdAt;
 
-    public IdempotencyKey() {}
     public IdempotencyKey(String key, Long transferId) {
         this.key = key;
         this.transferId = transferId;
@@ -24,21 +30,5 @@ public class IdempotencyKey {
     @PrePersist
     public void onCreate() {
         this.createdAt = OffsetDateTime.now();
-    }
-
-    public String getKey() {
-        return key;
-    }
-
-    public Long getTransferId() {
-        return transferId;
-    }
-
-    public void setTransferId(Long transferId) {
-        this.transferId = transferId;
-    }
-
-    public OffsetDateTime getCreatedAt() {
-        return createdAt;
     }
 }
